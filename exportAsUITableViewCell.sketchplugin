@@ -1,0 +1,304 @@
+// (cmd ctrl alt t)
+/*
+ExportUILabel from TextLayer 
+  helpful link: https://github.com/postite/sketchApi 
+  Created By: Toth Csaba
+  2014
+*/
+
+main()
+//Default size is what you working on the sketch file. For example if you are working with 2x sizes make it 2, if 1x make it to 1
+var defaultSize;
+var base_dir; 
+var needToSave;
+var layersShouldbeVisible;
+
+function main() 
+
+{
+  needToSave = [NSMutableArray new];
+  layersShouldbeVisible = [NSMutableArray new]
+  defaultSize = 2;
+  // alertForDefaultSize();
+
+  var allItems= @"\n\n";
+
+  base_dir = get_dir_from_prompt(get_cwd());
+    if (base_dir == null){
+      alert("Not saving any assets");
+      return;
+    }
+
+  var page = [doc currentPage]
+  var layers = [page children]
+
+  var loop = [selection objectEnumerator]
+
+  while (layer = [loop nextObject])
+  {
+    if ([layer isMemberOfClass:[MSLayerGroup class]])
+    {
+      allItems += "\nUIView *"+layer.name()+" = [UIView new];\n";
+      allItems += "["+layer.name()+" setFrame:"+rectFromItem(layer)+"];\n";
+      allItems += exploreLayerGroup(layer, "\t");
+    }
+  }
+
+
+    log(page);
+    log(allItems);
+
+  log("sart Saving needTosave:"+needToSave );
+  for (var i = needToSave.length() - 1; i >= 0; i--) 
+  {
+    var layer = [needToSave objectAtIndex:i]
+    log(@"saving:"+layer.name())
+    [layer setIsVisible:true];
+    process_slice(layer,doc,base_dir)
+    [layer setIsVisible:false];
+  }
+
+  for (var i = layersShouldbeVisible.length() - 1; i >= 0; i--) 
+  {
+    var layer = [layersShouldbeVisible objectAtIndex:i]
+    [layer setIsVisible:true];
+  }
+    saveToPasteBoard(allItems);  
+ }
+
+
+
+
+function exploreLayerGroup(group, prefix)
+{
+  var allText  = ""
+  var currentViewName =group.name()
+  var groupArray = group.layers()
+  log ("current:" +currentViewName+": "+groupArray);
+  for (var i = 0; i< groupArray.length();i++)
+  {
+    log("     "+i)
+    var  layer = [groupArray objectAtIndex:i]
+    
+
+
+    if([layer isMemberOfClass:[MSLayerGroup class]])
+    {
+      log("Making view called " + layer.name());
+        var newPrefix = prefix+"\t";
+        allText += "\n" + prefix+ "UIView *"+layer.name()+" = [UIView new];\n";
+        allText += prefix+ "["+layer.name()+" setFrame:"+rectFromItem(layer)+"];\n";
+        allText += exploreLayerGroup(layer, newPrefix);
+        allText += "\n" + prefix +  "["+ currentViewName + " addSubview: "+ safeName(layer)+"];\n"
+        // return allText;
+
+    }
+    else if ([layer isMemberOfClass:[MSTextLayer class]]) 
+    {
+        log("Making textfield called " + layer.name());
+        allText += handleTextboxWithPrefix(layer,prefix)
+        allText += "\n" + prefix +  "["+ currentViewName + " addSubview: "+ safeName(layer)+"];\n"
+
+        [layer setIsVisible:false];
+    }
+    else if ([layer isMemberOfClass:[MSBitmapLayer class]] || [layer isMemberOfClass:[MSShapeGroup class]])
+    {
+      log("Making image view view called " + layer.name());
+        allText += "\n" + prefix+ "UIImageView *"+layer.name()+" = [[UIImageView alloc]initWithImage:[UIImage imageNamed:@\""+layer.name()+"\"]];\n";
+        allText += prefix+ "["+layer.name()+" setFrame:"+rectFromItem(layer)+"];\n";
+        allText += "\n" + prefix +  "["+ currentViewName + " addSubview: "+ safeName(layer)+"];\n"
+      
+        [needToSave addObject:layer];
+        [layer setIsVisible:false];    
+    }
+    else
+    {
+      log (layer.name()+" : "+ layer.class())
+    }
+    
+  }
+
+  return allText
+}
+
+
+function alert(msg){
+    var app = [NSApplication sharedApplication];
+    [app displayDialog:msg withTitle:"Hey"];
+}
+
+
+// Let the user specify a directory
+function get_dir_from_prompt(){
+    var panel = [NSOpenPanel openPanel];
+    [panel setMessage:"Where do you want to place your assets?"];
+    [panel setCanChooseDirectories: true];
+    [panel setCanChooseFiles: false];
+    var default_dir = [[doc fileURL] URLByDeletingLastPathComponent];
+    [panel setDirectoryURL:default_dir];
+    if ([panel runModal] == NSOKButton){
+      var message = [panel filename];
+      return message;
+    }
+}
+
+// Return current working directory
+// This works better for the designer's workflow, as they mostly want to
+// save assets in the current directory
+function get_cwd()
+{
+    var file_url = [doc fileURL],
+    file_path = [file_url path],
+    base_dir = file_path.split([doc displayName])[0];
+    return base_dir;
+}
+
+
+function process_slice(slice, doc, base_dir){
+    var frame = [slice frame];
+    var slice_name = [slice name];
+  
+    var iOSFactors = [NSArray arrayWithObjects:
+      [".png", 1/defaultSize],
+      ["@2x.png", 2/defaultSize],
+      ["@3x.png", 3/defaultSize]];
+
+    for (var i = 0; i < [iOSFactors count]; i++)
+    {
+        var base = [iOSFactors objectAtIndex:i];
+        var factor = [base objectAtIndex:1];
+        var name = [base objectAtIndex:0];
+        
+      log("Processing " + slice_name + name + "(" + factor + ")");
+      var version = copy_layer_with_factor(slice, factor);
+      var file_name = base_dir + "/iOS/" +  slice_name +  name;
+      [doc saveArtboardOrSlice:version toFile:file_name];
+      log("Saved " + file_name);
+    }
+}
+
+function copy_layer_with_factor(original_slice, factor){
+    var copySlice = [original_slice duplicate];
+
+    var frame = [copySlice frame];
+    // [frame setX:-100000];
+    // [frame setY:-100000];
+
+    // [copySlice setFrame:frame];
+
+    var rect = [copySlice rectByAccountingForStyleSize:[[copySlice absoluteRect] rect]]
+    log("rect:"+rect)
+    // log("trimmed rect:"+rect)
+    slice = [MSExportRequest requestWithRect:rect scale:factor];
+    [slice setIncludeArtboardBackground:false]
+
+    [copySlice removeFromParent];
+    
+    log("Slicing " + slice);
+
+    return slice;
+}
+
+function alertForDefaultSize()
+{
+  // var userinput = [doc askForUserInput:"What sizes you using?" initialValue:@"2x"];
+  // defaultSize = [userinput stringByReplacingOccurrencesOfString:@"x" withString:@""];
+
+  var availableSizes = [@"1x",@"2x",@"3x"];
+  var accessory = [[NSComboBox alloc] initWithFrame:NSMakeRect(0,0,200,25)]
+  [accessory addItemsWithObjectValues:availableSizes]]
+  [accessory selectItemAtIndex:1]
+
+  var alert = [[NSAlert alloc] init]
+  [alert setMessageText:@"What sizes are you using?"]
+  [alert addButtonWithTitle:'OK']
+  [alert addButtonWithTitle:'Cancel']
+  [alert setAccessoryView:accessory]
+
+  var responseCode = [alert runModal]
+  var sel = [accessory indexOfSelectedItem]
+  var selectionString = availableSizes[sel]; 
+  
+  defaultSize = [selectionString stringByReplacingOccurrencesOfString:@"x" withString:@""];
+}
+
+function handleTextbox(textbox)
+{
+  str = handleTextboxWithPrefix(textbox,"");
+}
+
+function handleTextboxWithPrefix(textbox, prefix)
+{
+  if (textbox && textbox.class()!= MSTextLayer) 
+  {
+    return "";
+  };
+  var name = safeName(textbox);
+  var str = "\n" + prefix + "UILabel *"+name +"= [UILabel new];";
+  str = addNewParametersToStr(str, prefix + "["+name+" setFont:[UIFont fontWithName:@\""+textbox.fontPostscriptName()+"\" size:"+textbox.fontSize()/defaultSize+"]];");
+  str = addNewParametersToStr(str, prefix + "["+name+" setTextColor:"+UIColorFromColor(textbox.textColor())+"];");
+  str = addNewParametersToStr(str, prefix + "["+name+" setTextAlignment:"+NSTextAligmentFromTextAligment(textbox.textAlignment()))+"];");
+  str = addNewParametersToStr(str, prefix + "["+name+" setFrame:"+rectFromItem(textbox)+"];");
+  str = addNewParametersToStr(str, prefix + "["+name+" setText:@\""+name+"\"];");
+  
+  return str;
+}
+
+function NSTextAligmentFromTextAligment(textAlignment)
+{
+  var aligment = textAlignment;
+
+  switch(textAlignment)
+  {
+    case 0:
+      aligment = @"NSTextAlignmentLeft";
+      break;
+    case 1:
+      aligment = @"NSTextAlignmentRight";
+      break;
+    case 2:
+      aligment = @"NSTextAlignmentCenter";
+      break;
+    case 3: 
+      aligment = @"NSTextAlignmentJustified";
+      break;
+  }
+
+
+
+  return aligment;
+}
+
+function UIColorFromColor(color)
+{
+  return "[UIColor colorWithRed:"+color.red().toFixed(3)+" green:"+color.green().toFixed(3)+" blue:"+color.blue().toFixed(3)+" alpha:"+color.alpha().toFixed(3)+"]"
+}
+
+function rectFromItem(item)
+{
+  return "CGRectIntegral(CGRectMake("+item.frame().x()/defaultSize+","+item.frame().y()/defaultSize+", "+item.frame().width()/defaultSize+", "+item.frame().height()/defaultSize+"))"
+}
+function addNewParametersToStr(originalStr, additions)
+{
+  return originalStr += "\n"+additions;
+}
+
+function saveToPasteBoard(str)
+{
+  var pasteBoard = NSPasteboard.generalPasteboard();
+  pasteBoard.declareTypes_owner( [ NSPasteboardTypeString ], null );
+  pasteBoard.setString_forType_(str, NSStringPboardType);
+
+}
+function safeName(layer) 
+ {
+  var name = layer.name()
+  return name.stringByReplacingOccurrencesOfString_withString_(" ", "_")
+}
+
+function round(value, decimals) 
+{
+  if(decimals == null) decimals = 2
+  var power = Math.pow(10, decimals)
+  return Math.round(value * power)/power
+}

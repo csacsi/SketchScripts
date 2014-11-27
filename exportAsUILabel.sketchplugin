@@ -1,0 +1,149 @@
+// (ctrl alt cmd c)
+/*
+ExportUILabel from TextLayer 
+  Created By: Toth Csaba
+  2014
+*/
+
+main()
+//Default size is what you working on the sketch file. For example if you are working with 2x sizes make it 2, if 1x make it to 1
+var defaultSize;
+
+function main() 
+{
+  defaultSize = 2;
+  // alertForDefaultSize();
+
+  var allItems= @"\n\n";
+
+  var loop = selection.objectEnumerator()
+  while(item = loop.nextObject()) 
+  {
+    if ([item isMemberOfClass:[MSTextLayer class]]) 
+    { 
+      allItems = addNewParametersToStr(allItems, handleTextbox(item));
+    }
+    else
+    {
+      log(@"Please select a textBox object");
+    }
+  }
+// var page = [doc currentPage]
+// var layers = [page children]
+
+// [page deselectAllLayers]
+
+// var loop = [layers objectEnumerator]
+
+// while (layer = [loop nextObject])
+// {
+//   if([layer isMemberOfClass:[MSTextLayer class]]) 
+//   {
+//     allItems = addNewParametersToStr(allItems, handleTextbox(layer));
+//     [layer select:true byExpandingSelection:true]
+//   }
+// }
+//     log(page);
+    log(allItems);
+
+    saveToPasteBoard(allItems);  
+ }
+
+
+
+
+
+
+function alertForDefaultSize()
+{
+  // var userinput = [doc askForUserInput:"What sizes you using?" initialValue:@"2x"];
+  // defaultSize = [userinput stringByReplacingOccurrencesOfString:@"x" withString:@""];
+
+  var availableSizes = [@"1x",@"2x",@"3x"];
+  var accessory = [[NSComboBox alloc] initWithFrame:NSMakeRect(0,0,200,25)]
+  [accessory addItemsWithObjectValues:availableSizes]]
+  [accessory selectItemAtIndex:1]
+
+  var alert = [[NSAlert alloc] init]
+  [alert setMessageText:@"What sizes are you using?"]
+  [alert addButtonWithTitle:'OK']
+  [alert addButtonWithTitle:'Cancel']
+  [alert setAccessoryView:accessory]
+
+  var responseCode = [alert runModal]
+  var sel = [accessory indexOfSelectedItem]
+  var selectionString = availableSizes[sel]; 
+  
+  defaultSize = [selectionString stringByReplacingOccurrencesOfString:@"x" withString:@""];
+}
+
+function handleTextbox(textbox)
+{
+  if (textbox && textbox.class()!= MSTextLayer) 
+  {
+    return "";
+  };
+  var name = safeName(textbox);
+  var str = "UILabel *"+name +"= [UILabel new];";
+  str = addNewParametersToStr(str, "["+name+" setFont:[UIFont fontWithName:@\""+textbox.fontPostscriptName()+"\" size:"+textbox.fontSize()/defaultSize+"]];");
+  str = addNewParametersToStr(str, "["+name+" setTextColor:"+UIColorFromColor(textbox.textColor())+"];");
+  str = addNewParametersToStr(str, "["+name+" setTextAlignment:"+NSTextAligmentFromTextAligment(textbox.textAlignment()))+"];");
+  str = addNewParametersToStr(str, "["+name+" setFrame:CGRectIntegral(CGRectMake("+textbox.frame().x()/defaultSize+","+textbox.frame().y()/defaultSize+", "+textbox.frame().width()/defaultSize+", "+textbox.frame().height()/defaultSize+"))];");
+  
+
+  log(str);
+  return str;
+}
+
+function NSTextAligmentFromTextAligment(textAlignment)
+{
+  var aligment = textAlignment;
+
+  switch(textAlignment)
+  {
+    case 0:
+      aligment = @"NSTextAlignmentLeft";
+      break;
+    case 1:
+      aligment = @"NSTextAlignmentRight";
+      break;
+    case 2:
+      aligment = @"NSTextAlignmentCenter";
+      break;
+    case 3: 
+      aligment = @"NSTextAlignmentJustified";
+      break;
+  }
+
+  return aligment;
+}
+
+function UIColorFromColor(color)
+{
+  return "[UIColor colorWithHue:"+color.hue()+" saturation:"+color.saturation()+" brightness:"+color.brightness()+" alpha:"+color.alpha()+"]";  
+}
+
+function addNewParametersToStr(originalStr, additions)
+{
+  return originalStr += "\n"+additions;
+}
+
+function saveToPasteBoard(str)
+{
+  var pasteBoard = NSPasteboard.generalPasteboard();
+  pasteBoard.declareTypes_owner( [ NSPasteboardTypeString ], null );
+  pasteBoard.setString_forType_(str, NSStringPboardType);
+
+}
+function safeName(layer) 
+ {
+  var name = layer.name()
+  return name.stringByReplacingOccurrencesOfString_withString_(" ", "_")
+}
+
+function round(value, decimals) 
+{
+  if(decimals == null) decimals = 2
+  var power = Math.pow(10, decimals)
+  return Math.round(value * power)/power
+}
