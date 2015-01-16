@@ -48,6 +48,9 @@ function main()
     log(page);
     log(allItems);
 
+        saveToPasteBoard(allItems);  
+
+
   log("sart Saving needTosave:"+needToSave );
   for (var i = needToSave.length() - 1; i >= 0; i--) 
   {
@@ -185,7 +188,7 @@ function copy_layer_with_factor(original_slice, factor){
     // [frame setY:-100000];
 
     // [copySlice setFrame:frame];
-
+    
     var rect = [copySlice rectByAccountingForStyleSize:[[copySlice absoluteRect] rect]]
     log("rect:"+rect)
     // log("trimmed rect:"+rect)
@@ -240,6 +243,7 @@ function handleTextboxWithPrefix(textbox, prefix)
   str = addNewParametersToStr(str, prefix + "["+name+" setTextAlignment:"+NSTextAligmentFromTextAligment(textbox.textAlignment()))+"];");
   str = addNewParametersToStr(str, prefix + "["+name+" setFrame:"+rectFromItem(textbox)+"];");
   str = addNewParametersToStr(str, prefix + "["+name+" setText:@\""+name+"\"];");
+  str = addNewParametersToStr(str, prefix + "["+name+" sizeToFit];");
   
   return str;
 }
