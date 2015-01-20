@@ -12,12 +12,14 @@ var defaultSize;
 var base_dir; 
 var needToSave;
 var layersShouldbeVisible;
+var variables;
 
 function main() 
 
 {
   needToSave = [NSMutableArray new];
   layersShouldbeVisible = [NSMutableArray new]
+  variables = @"\n";
   defaultSize = 2;
   // alertForDefaultSize();
 
@@ -38,7 +40,8 @@ function main()
   {
     if ([layer isMemberOfClass:[MSLayerGroup class]])
     {
-      allItems += "\nUIView *"+layer.name()+" = [UIView new];\n";
+      variables += "UIView *"+layer.name()+";\n";
+      allItems += "\n"+layer.name()+" = [UIView new];\n";
       allItems += "["+layer.name()+" setFrame:"+rectFromItem(layer)+"];\n";
       allItems += exploreLayerGroup(layer, "\t");
     }
@@ -46,9 +49,11 @@ function main()
 
 
     log(page);
+  
+    allItems = variables + "\n" +allItems;
     log(allItems);
 
-        saveToPasteBoard(allItems);  
+    saveToPasteBoard(allItems);  
 
 
   log("sart Saving needTosave:"+needToSave );
@@ -89,7 +94,8 @@ function exploreLayerGroup(group, prefix)
     {
       log("Making view called " + layer.name());
         var newPrefix = prefix+"\t";
-        allText += "\n" + prefix+ "UIView *"+layer.name()+" = [UIView new];\n";
+        variables += "UIView *"+layer.name()+";\n";
+        allText += "\n" + prefix + layer.name()+" = [UIView new];\n";
         allText += prefix+ "["+layer.name()+" setFrame:"+rectFromItem(layer)+"];\n";
         allText += exploreLayerGroup(layer, newPrefix);
         allText += "\n" + prefix +  "["+ currentViewName + " addSubview: "+ safeName(layer)+"];\n"
@@ -107,7 +113,8 @@ function exploreLayerGroup(group, prefix)
     else if ([layer isMemberOfClass:[MSBitmapLayer class]] || [layer isMemberOfClass:[MSShapeGroup class]])
     {
       log("Making image view view called " + layer.name());
-        allText += "\n" + prefix+ "UIImageView *"+layer.name()+" = [[UIImageView alloc]initWithImage:[UIImage imageNamed:@\""+layer.name()+"\"]];\n";
+        variables += "UIImageView *"+layer.name()+";\n";
+        allText += "\n" + prefix + layer.name()+" = [[UIImageView alloc]initWithImage:[UIImage imageNamed:@\""+layer.name()+"\"]];\n";
         allText += prefix+ "["+layer.name()+" setFrame:"+rectFromItem(layer)+"];\n";
         allText += "\n" + prefix +  "["+ currentViewName + " addSubview: "+ safeName(layer)+"];\n"
       
@@ -180,25 +187,16 @@ function process_slice(slice, doc, base_dir){
     }
 }
 
-function copy_layer_with_factor(original_slice, factor){
-    var copySlice = [original_slice duplicate];
-
-    var frame = [copySlice frame];
-    // [frame setX:-100000];
-    // [frame setY:-100000];
-
-    // [copySlice setFrame:frame];
-    
-    var rect = [copySlice rectByAccountingForStyleSize:[[copySlice absoluteRect] rect]]
-    log("rect:"+rect)
-    // log("trimmed rect:"+rect)
+function copy_layer_with_factor(original_slice, factor)
+{
+    var copy = [original_slice duplicate];
+    var frame = [copy frame];
+    var rect = [[copy absoluteRect] rect];
     slice = [MSExportRequest requestWithRect:rect scale:factor];
-    [slice setIncludeArtboardBackground:false]
-
-    [copySlice removeFromParent];
-    
+    [slice setIncludeArtboardBackground:false];
+    [copy removeFromParent];
     log("Slicing " + slice);
-
+ 
     return slice;
 }
 
@@ -237,7 +235,8 @@ function handleTextboxWithPrefix(textbox, prefix)
     return "";
   };
   var name = safeName(textbox);
-  var str = "\n" + prefix + "UILabel *"+name +"= [UILabel new];";
+  variables += "UILabel *"+name+";\n";
+  var str = "\n" + prefix + name +"= [UILabel new];";
   str = addNewParametersToStr(str, prefix + "["+name+" setFont:[UIFont fontWithName:@\""+textbox.fontPostscriptName()+"\" size:"+textbox.fontSize()/defaultSize+"]];");
   str = addNewParametersToStr(str, prefix + "["+name+" setTextColor:"+UIColorFromColor(textbox.textColor())+"];");
   str = addNewParametersToStr(str, prefix + "["+name+" setTextAlignment:"+NSTextAligmentFromTextAligment(textbox.textAlignment()))+"];");
