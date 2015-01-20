@@ -13,6 +13,7 @@ var base_dir;
 var needToSave;
 var layersShouldbeVisible;
 var variables;
+var setFrames;
 
 function main() 
 
@@ -24,6 +25,7 @@ function main()
   // alertForDefaultSize();
 
   var allItems= @"\n\n";
+  setFrames = "";
 
   base_dir = get_dir_from_prompt(get_cwd());
     if (base_dir == null){
@@ -40,23 +42,33 @@ function main()
   {
     if ([layer isMemberOfClass:[MSLayerGroup class]])
     {
-      variables += "UIView *"+layer.name()+";\n";
-      allItems += "\n"+layer.name()+" = [UIView new];\n";
-      allItems += "["+layer.name()+" setFrame:"+rectFromItem(layer)+"];\n";
+      var name  = safeName(layer);
+      
+      variables += "UIView *"+name+";\n";
+
+      allItems += "\n"+ name+" = [UIView new];\n";
+      allItems += frameFromLayer(layer);
       allItems += exploreLayerGroup(layer, "\t");
+
+      setFrames += frameFromLayer(layer);
     }
   }
 
 
     log(page);
   
-    allItems = variables + "\n" +allItems;
-    log(allItems);
+    // allItems = variables + "\n" +allItems;
+  // log(base_dir);
 
-    saveToPasteBoard(allItems);  
+var ok = writeTextToFile("//Variables:\n"+variables + "\n" +allItems+"\n"+"//Setframes:\n\n"+setFrames, base_dir + "/source.m");
 
+
+    // log(allItems);
+
+    // saveToPasteBoard(allItems);  
 
   log("sart Saving needTosave:"+needToSave );
+
   for (var i = needToSave.length() - 1; i >= 0; i--) 
   {
     var layer = [needToSave objectAtIndex:i]
@@ -71,7 +83,7 @@ function main()
     var layer = [layersShouldbeVisible objectAtIndex:i]
     [layer setIsVisible:true];
   }
-    saveToPasteBoard(allItems);  
+
  }
 
 
@@ -92,32 +104,39 @@ function exploreLayerGroup(group, prefix)
 
     if([layer isMemberOfClass:[MSLayerGroup class]])
     {
-      log("Making view called " + layer.name());
+
+      var name = safeName(layer);
+      log("Making view called " + name);
         var newPrefix = prefix+"\t";
-        variables += "UIView *"+layer.name()+";\n";
-        allText += "\n" + prefix + layer.name()+" = [UIView new];\n";
-        allText += prefix+ "["+layer.name()+" setFrame:"+rectFromItem(layer)+"];\n";
+      
+        variables += "UIView *"+name+";\n";
+        allText += "\n" + prefix + name+" = [UIView new];\n";
+        allText += prefix + frameFromLayer(layer);
         allText += exploreLayerGroup(layer, newPrefix);
-        allText += "\n" + prefix +  "["+ currentViewName + " addSubview: "+ safeName(layer)+"];\n"
+        allText += "\n" + prefix +  "["+ currentViewName + " addSubview: "+ name+"];\n"
+        setFrames += frameFromLayer(layer);
         // return allText;
 
     }
     else if ([layer isMemberOfClass:[MSTextLayer class]]) 
     {
-        log("Making textfield called " + layer.name());
+        log("Making textfield called " + safeName(layer));
         allText += handleTextboxWithPrefix(layer,prefix)
         allText += "\n" + prefix +  "["+ currentViewName + " addSubview: "+ safeName(layer)+"];\n"
-
+        
         [layer setIsVisible:false];
     }
     else if ([layer isMemberOfClass:[MSBitmapLayer class]] || [layer isMemberOfClass:[MSShapeGroup class]])
     {
-      log("Making image view view called " + layer.name());
-        variables += "UIImageView *"+layer.name()+";\n";
-        allText += "\n" + prefix + layer.name()+" = [[UIImageView alloc]initWithImage:[UIImage imageNamed:@\""+layer.name()+"\"]];\n";
-        allText += prefix+ "["+layer.name()+" setFrame:"+rectFromItem(layer)+"];\n";
-        allText += "\n" + prefix +  "["+ currentViewName + " addSubview: "+ safeName(layer)+"];\n"
-      
+      var name = safeName(layer);
+        log("Making image view view called " + name);
+        
+        variables += "UIImageView *"+name+";\n";
+        allText += "\n" + prefix + name+" = [[UIImageView alloc]initWithImage:[UIImage imageNamed:@\""+name+"\"]];\n";
+        allText += prefix+ frameFromLayer(layer);
+        allText += "\n" + prefix +  "["+ currentViewName + " addSubview: "+ name+"];\n"
+        setFrames += frameFromLayer(layer);
+        
         [needToSave addObject:layer];
         [layer setIsVisible:false];    
     }
@@ -240,10 +259,18 @@ function handleTextboxWithPrefix(textbox, prefix)
   str = addNewParametersToStr(str, prefix + "["+name+" setFont:[UIFont fontWithName:@\""+textbox.fontPostscriptName()+"\" size:"+textbox.fontSize()/defaultSize+"]];");
   str = addNewParametersToStr(str, prefix + "["+name+" setTextColor:"+UIColorFromColor(textbox.textColor())+"];");
   str = addNewParametersToStr(str, prefix + "["+name+" setTextAlignment:"+NSTextAligmentFromTextAligment(textbox.textAlignment()))+"];");
-  str = addNewParametersToStr(str, prefix + "["+name+" setFrame:"+rectFromItem(textbox)+"];");
+  str = addNewParametersToStr(str, prefix + frameFromLayer(textbox));
   str = addNewParametersToStr(str, prefix + "["+name+" setText:@\""+name+"\"];");
   str = addNewParametersToStr(str, prefix + "["+name+" sizeToFit];");
+
+  setFrames += frameFromLayer(textbox);
   
+  return str;
+}
+
+function frameFromLayer(layer)
+{
+  var str = "["+safeName(layer)+" setFrame:"+rectFromItem(layer)+"];\n"
   return str;
 }
 
@@ -279,8 +306,9 @@ function UIColorFromColor(color)
 
 function rectFromItem(item)
 {
-  return "CGRectIntegral(CGRectMake("+item.frame().x()/defaultSize+","+item.frame().y()/defaultSize+", "+item.frame().width()/defaultSize+", "+item.frame().height()/defaultSize+"))"
+  return "CGRectIntegral(CGRectMake("+Math.ceil((item.frame().x()/defaultSize)).toFixed(0)+","+Math.ceil((item.frame().y()/defaultSize)).toFixed(0)+", "+Math.ceil((item.frame().width()/defaultSize)).toFixed(0)+", "+Math.ceil((item.frame().height()/defaultSize)).toFixed(0)+"))"
 }
+
 function addNewParametersToStr(originalStr, additions)
 {
   return originalStr += "\n"+additions;
@@ -295,7 +323,13 @@ function saveToPasteBoard(str)
 }
 function safeName(layer) 
  {
-  var name = layer.name()
+  if (!layer) 
+  {
+
+    return "";
+  };
+
+  var name = layer.name();
   return name.stringByReplacingOccurrencesOfString_withString_(" ", "_")
 }
 
@@ -304,4 +338,25 @@ function round(value, decimals)
   if(decimals == null) decimals = 2
   var power = Math.pow(10, decimals)
   return Math.round(value * power)/power
+}
+
+function writeTextToFile(text, path) 
+{
+        var result = false;
+        if (typeof path !== 'string')
+            return result;
+
+        // create a NSString object from the given text
+        var nsstring = NSString.stringWithUTF8String(text);
+
+        // use the writeToFile method of the NSString object to write the text to the given URL
+        result = [nsstring writeToFile:path atomically:1 encoding:NSUTF8StringEncoding error:null];
+
+        if (!result) {
+            result = false;
+        } else {
+            result = true;
+        }
+
+        return result;
 }
